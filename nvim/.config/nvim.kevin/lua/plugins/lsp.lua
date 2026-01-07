@@ -53,8 +53,8 @@ return
       nmap('<leader>rn', vim.lsp.buf.rename, '[R]e[n]ame')
       nmap('<leader>ca', vim.lsp.buf.code_action, '[C]ode [A]ction')
 
-      nmap('gd', require('telescope.builtin').lsp_definitions, '[G]oto [D]efinition')
-      nmap('gr', require('telescope.builtin').lsp_references, '[G]oto [R]eferences')
+      -- nmap('gd', require('telescope.builtin').lsp_definitions, '[G]oto [D]efinition')
+      -- nmap('gr', require('telescope.builtin').lsp_references, '[G]oto [R]eferences')
       nmap('gI', require('telescope.builtin').lsp_implementations, '[G]oto [I]mplementation')
       nmap('<leader>D', require('telescope.builtin').lsp_type_definitions, 'Type [D]efinition')
       nmap('<leader>ds', require('telescope.builtin').lsp_document_symbols, '[D]ocument [S]ymbols')
@@ -143,25 +143,23 @@ return
     })
 
     -- Configure Diagnotics
-    local signs = { Error = "󰅚 ", Warn = "󰀪 ", Hint = "󰌶 ", Info = " " }
-    for type, icon in pairs(signs) do
-      local hl = "DiagnosticSign" .. type
-      vim.fn.sign_define(hl, { text = icon, texthl = hl, numhl = hl })
-    end
+    vim.diagnostic.config({
+      signs = {
+        text = {
+          [vim.diagnostic.severity.ERROR] = "󰅚 ",
+          [vim.diagnostic.severity.WARN] = "󰀪 ",
+          [vim.diagnostic.severity.HINT] = "󰌶 ",
+          [vim.diagnostic.severity.INFO] = " "
+        }
+      }
+    })
 
     -- Configure Mason
     require('mason').setup()
     require('mason-lspconfig').setup()
 
-    -- Enable the following language servers
-    --  Feel free to add/remove any LSPs that you want here. They will automatically be installed.
-    --
-    --  Add any additional override configuration in the following tables. They will be passed to
-    --  the `settings` field of the server config. You must look up that documentation yourself.
-    --
-    --  If you want to override the default filetypes that your language server will attach to you can
-    --  define the property 'filetypes' to the map in question.
     local servers = {
+      ts_ls = {},
       gopls = {},
       lua_ls = {
         Lua = {
@@ -181,28 +179,21 @@ return
     -- Setup neovim lua configuration
     require('lazydev').setup()
 
-    -- Setup gdscript lsp configuration
-    require("lspconfig").gdscript.setup({
-      -- name = "godot",
-      -- cmd = vim.lsp.rpc.connect("127.0.0.1", 6005),
-    })
     -- load blink.cmp's capabilities to inform the lsp
     local capabilities = require('blink.cmp').get_lsp_capabilities()
 
     -- Ensure the servers above are installed
     local mason_lspconfig = require 'mason-lspconfig'
-
     mason_lspconfig.setup {
       ensure_installed = vim.tbl_keys(servers),
-    }
-    mason_lspconfig.setup_handlers {
       function(server_name)
-        require('lspconfig')[server_name].setup {
+        local server_config = servers[server_name] or {}
+        vim.lsp.config(server_name, {
           capabilities = capabilities,
           on_attach = on_attach,
-          settings = servers[server_name],
-          filetypes = (servers[server_name] or {}).filetypes,
-        }
+          settings = server_config,
+          filetypes = server_config.filetypes,
+        })
       end,
     }
   end,

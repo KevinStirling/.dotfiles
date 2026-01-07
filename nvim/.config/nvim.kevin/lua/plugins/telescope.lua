@@ -38,7 +38,13 @@ return
         },
         buffers = {
           theme = "ivy"
-        }
+        },
+        help_tags = {
+          theme = "dropdown"
+        },
+        git_branches = {
+          theme = "dropdown"
+        },
       },
       extensions = {
         fzf = {}
@@ -131,5 +137,6 @@ return
         }
       end,
       { desc = "[S]earch by Grep neovim [C]onfig" })
+    vim.keymap.set('n', '<leader>gb', require('telescope.builtin').git_branches, { desc = 'Search [G]it [B]ranches' })
   end
 }
