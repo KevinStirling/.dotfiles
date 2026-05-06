@@ -2,6 +2,7 @@ vim.pack.add({
     'https://github.com/nvim-mini/mini.statusline',
     'https://github.com/nvim-mini/mini.cmdline',
     'https://github.com/nvim-treesitter/nvim-treesitter', -- syntax
+    'https://github.com/nvim-treesitter/nvim-treesitter-context',
     'https://github.com/saghen/blink.cmp',                -- completion
     "https://github.com/stevearc/oil.nvim"                -- filesystem browser
 }, { confirm = false })
@@ -35,6 +36,9 @@ vim.keymap.set("n", "-", require("oil").open, { desc = "Open parent directory" }
 
 require("nvim-treesitter").setup()
 require("nvim-treesitter.install").update()
+require("treesitter-context").setup({
+    opts = { mode = "cursor", max_lines = 3 },
+})
 require("blink.cmp").setup({
     completion = {
         documentation = {
