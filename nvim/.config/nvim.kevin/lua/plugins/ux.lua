@@ -1,7 +1,8 @@
 vim.pack.add({
-    'https://github.com/j-hui/fidget.nvim',          -- notifications
-    'https://github.com/nvim-mini/mini.indentscope', -- scope visualization
-    'https://github.com/nvim-mini/mini.clue',        -- shortcut hints
+    'https://github.com/j-hui/fidget.nvim',                         -- notifications
+    'https://github.com/nvim-mini/mini.indentscope',                -- scope visualization
+    'https://github.com/nvim-mini/mini.clue',                       -- shortcut hints
+    'https://github.com/MeanderingProgrammer/render-markdown.nvim', -- markdown rendering & styling
 })
 require("fidget").setup({
     opts = {
