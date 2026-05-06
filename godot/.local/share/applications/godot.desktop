@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Godot Engine
+Comment=Game Engine
+Exec=env HOME=%h sh -lc "$HOME/.local/bin/godot"
+Terminal=false
+Type=Application
+Categories=Development;GameDevelopment;
+Icon=godot
+StartNoftify=true

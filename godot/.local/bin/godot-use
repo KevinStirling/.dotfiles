@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+GODOT_ROOT="${HOME}/Applications/godot"
+
+usage() {
+    cat <<'EOF'
+Usage:
+    godot-use <version-dir>
+
+Example:
+    godot-use 4.2.2-stable_standard
+    godot-use 4.3-beta_standard
+
+This will update:
+    ~/.local/bin/godot -> ~/Applications/godot/<version-dir>/<godot-binary>
+
+Tip:
+    Install a new version by running the following
+
+    cd ~/Applications/godot
+    mkdir -p <version>-stable
+    unzip ~/Downloads/Godot_v<version>-stable_linux.x86_64.zip -d <version>-stable
+EOF
+}
+
+if [[ $# -ne 1 ]]; then
+    usage
+    echo
+    echo "Installed versions in ${GODOT_ROOT}:"
+    ls -1 "$GODOT_ROOT" 2>/dev/null || true
+    exit 1
+fi
+
+ver="$1"
+ver_dir="${GODOT_ROOT}/${ver}"
+if [[ ! -d "${ver_dir}" ]]; then
+    echo "Error: version directory not found: ${ver_dir}" >&2
+    echo
+    echo "Available:"
+    ls -1 "${GODOT_ROOT}" 2>/dev/null || true
+    exit 1
+fi
+
+# Prefer Godot_v* binaries; ignore common non-binary files
+bin="$(
+    find "${ver_dir}" -maxdepth 1 -type f \
+        \( -name 'Godot_v*linux*.x86_64' -o -name 'Godot_v*linux*_x86_64' -o -name 'Godot_v*' -o -name 'godot*' \) \
+        ! -name '*.zip' ! -name '*.txt' ! -name '*.md' ! -name '*.sha256' ! -name '*.sing' \
+    | head -n 1
+)"
+
+if [[ -z "${bin}" ]]; then
+    echo "Error: could not find a Godot binary in ${ver_dir}" >&2
+    echo "Tip: ensure the extracted zip contents are inside the version folder." >&2
+    exit 1
+fi
+
+# Ensure executable
+chmod +x "${bin}" || true
+
+mkdir -p "${HOME}/.local/bin"
+ln -sf "${bin}" "${HOME}/.local/bin/godot"
+
+echo "Godot set to:"
+echo "  ${bin}"
+
+if "{$HOME}/.local/bin/godot" --version >/dev/null 2>&1; then
+    echo
+    echo "godot --version:"
+    "{$HOME}/.local/bin/godot" --version || true
+fi

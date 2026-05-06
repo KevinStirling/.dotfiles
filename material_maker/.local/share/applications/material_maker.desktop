@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Material Maker
+Comment=Asset creation
+Exec=env HOME=%h sh -lc "$HOME/Applications/material_maker/material_maker_1_5p1_linux/material_maker.x86_64"
+Terminal=false
+Type=Application
+Categories=Development;GameDevelopment;
+Icon=godot
+StartNoftify=true
