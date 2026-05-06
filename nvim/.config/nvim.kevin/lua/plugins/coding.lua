@@ -1,26 +1,12 @@
-return
-{
-  {
-    'echasnovski/mini.pairs',
-    version = false,
-    config = function()
-      require('mini.pairs').setup({
-        opts = {}
-      })
-    end
-  },
-  {
-    'echasnovski/mini.ai',
-    version = false,
-    config = function()
-      require('mini.ai').setup()
-    end
-  },
-  {
-    'echasnovski/mini.surround',
-    verison = false,
-    config = function()
-      require('mini.surround').setup()
-    end
-  }
-}
+vim.pack.add({
+    'https://github.com/nvim-mini/mini.pairs', -- auto pairs
+    'https://github.com/nvim-mini/mini.surround', -- surround selects
+}, {confirm = false })
+
+require('mini.pairs').setup({
+    modes = { command = true },
+})
+
+require('mini.surround').setup({
+    modes = { command = true },
+})

@@ -52,18 +52,21 @@ vim.o.shiftwidth = 4
 -- sets conceal block to one character
 vim.opt.conceallevel = 1
 
--- Terminal
-vim.api.nvim_create_autocmd("TermOpen", {
-  group = vim.api.nvim_create_augroup('custom-term-open', { clear = true }),
-  callback = function()
-    vim.opt.number = false
-    vim.opt.relativenumber = false
-  end
+vim.opt.showmode = false
+
+--diagnostics
+vim.diagnostic.config({ jump = { float = true } })
+vim.diagnostic.config({
+    signs = {
+        text = {
+            [vim.diagnostic.severity.ERROR] = "󰅚",
+            [vim.diagnostic.severity.WARN] = "󰀪",
+            [vim.diagnostic.severity.HINT] = "󰌶",
+            [vim.diagnostic.severity.INFO] = " "
+        },
+    },
+    virtual_text = true, -- show inline diagnostics
 })
 
-vim.api.nvim_create_autocmd("FileType", {
-  pattern = "gomod",
-  callback = function()
-    vim.opt_local.spell = false
-  end,
-})
+-- clear search highlights with <Esc>
+vim.keymap.set("n", "<Esc>", "<cmd>nohlsearch<CR>")
