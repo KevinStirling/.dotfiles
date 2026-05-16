@@ -4,6 +4,7 @@ vim.pack.add({
     'https://github.com/nvim-mini/mini.clue',                       -- shortcut hints
     'https://github.com/MeanderingProgrammer/render-markdown.nvim', -- markdown rendering & styling
 })
+require('render-markdown').setup()
 require("fidget").setup({
     opts = {
         notification = {

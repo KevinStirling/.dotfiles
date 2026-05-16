@@ -7,18 +7,26 @@ vim.pack.add({
 }, { confirm = false })
 
 local lsp_servers = {
-  lua_ls = {
-    -- https://luals.github.io/wiki/settings/ | `:h nvim_get_runtime_file`
-    Lua = { workspace = { library = vim.api.nvim_get_runtime_file("lua", true) }, },
-  },
-  gopls = {},
-  ts_ls = {},
+    lua_ls = {
+        -- https://luals.github.io/wiki/settings/ | `:h nvim_get_runtime_file`
+        Lua = { workspace = { library = vim.api.nvim_get_runtime_file("lua", true) }, },
+    },
+    gopls = {},
+    ts_ls = {},
+    markdown_oxide = {},
 }
 
 require("mason").setup()
 require("mason-lspconfig").setup()
 require("mason-tool-installer").setup({
     ensure_installed = vim.tbl_keys(lsp_servers),
+})
+
+vim.lsp.config('markdown_oxide', {
+    config = function()
+        local capabilities = require('blink.cmp').get_lsp_capabilities()
+        vim.lsp._enabled_configs.setup({ capabilities = capabilities })
+    end
 })
 
 -- enable formatting for attached lsp servers

@@ -133,7 +133,7 @@ unset key
 # Environment vars
 # ------------------------------
 
-alias notes='nvim ~/Documents/MyVault'
+alias nb='nvim ~/Documents/MyVault'
 alias ldtk='~/workspace/gamedev/tools/LDtk\ 1.5.3\ installer.AppImage &'
 alias gdvim='NVIM_APPNAME=nvimtest nvim --listen /tmp/godot.pipe'
 alias godot-stable='godot-stable'
@@ -148,9 +148,6 @@ export GOPATH="$HOME/go"
 # bun
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
-
-# API keys
-export OPENAI_API_KEY=""
 
 export PATH="$PATH:/opt/nvim-linux64/bin"
 export PATH=$PATH:~/workspace/gamedev/tools/

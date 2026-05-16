@@ -1,5 +1,6 @@
 vim.pack.add({
     'https://github.com/nvim-mini/mini.statusline',
+    'https://github.com/nvim-lualine/lualine.nvim',
     'https://github.com/nvim-mini/mini.cmdline',
     'https://github.com/nvim-treesitter/nvim-treesitter', -- syntax
     'https://github.com/nvim-treesitter/nvim-treesitter-context',
@@ -11,6 +12,15 @@ vim.pack.add({
 require('mini.statusline').setup({
     modes = { command = true },
 })
+
+-- require('lualine').setup({
+--     options = {
+--         icons_enabled = true,
+--         component_separators = '|',
+--         section_separators = '',
+--         globalstatus = false,
+--     },
+-- })
 
 require('mini.cmdline').setup({
     modes = { command = true },
@@ -36,7 +46,14 @@ require("oil").setup {
 vim.keymap.set("n", "-", require("oil").open, { desc = "Open parent directory" })
 
 require("nvim-treesitter").setup()
-require("nvim-treesitter.install").update()
+
+-- equivalent to :TSUpdate
+require("nvim-treesitter.install").update("all")
+
+-- require("nvim-treesitter.configs").setup({
+--     auto_install = true, -- autoinstall languages that are not installed yet
+-- })
+
 require("treesitter-context").setup({
     opts = { mode = "cursor", max_lines = 3 },
 })
