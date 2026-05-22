@@ -14,10 +14,7 @@ $character"""
 
 [directory]
 style = "bold green"
-truncation_length = 3
-truncation_symbol = "…/"
-repo_root_style = "bold green"
-repo_root_format = "[$repo_root]($repo_root_style)[$path]($style)[$read_only]($read_only_style) "
+
 [character]
 success_symbol = "[➜](bold blue)"
 error_symbol = "[➜](bold red)"
@@ -25,18 +22,23 @@ vimcmd_symbol = "[<-](bold yellow)"
 
 [git_branch]
 format = "[$branch]($style)"
-style = "bright-cyan"
+style = "bright-black"
 
 [git_status]
-format = "[[(*$conflicted$untracked$modified$staged$renamed$deleted)](218) ($ahead_behind$stashed)]($style)"
-style = "blue"
-conflicted = "​"
-untracked = "​"
-modified = "​"
-staged = "​"
-renamed = "​"
-deleted = "​"
+format = '([$all_status](218)[$ahead_behind](cyan)[$stashed](cyan) )'
+
+conflicted = "*"
+untracked = ""        
+modified = "*"
+staged = ""            
+renamed = ""
+deleted = ""
 stashed = "≡"
+
+ahead = "⇡"
+behind = "⇣"
+diverged = "⇡⇣"
+up_to_date = ""
 
 [git_state]
 format = '\([$state( $progress_current/$progress_total)]($style)\) '
@@ -46,3 +48,8 @@ style = "bright-black"
 format = "[$duration]($style) "
 style = "yellow"
 
+[python]
+format = "[$virtualenv]($style) "
+style = "bright-black"
+detect_extensions = []
+detect_files = []
