@@ -70,3 +70,6 @@ vim.diagnostic.config({
 
 -- clear search highlights with <Esc>
 vim.keymap.set("n", "<Esc>", "<cmd>nohlsearch<CR>")
+
+-- opt into new ui
+require('vim._core.ui2').enable({})

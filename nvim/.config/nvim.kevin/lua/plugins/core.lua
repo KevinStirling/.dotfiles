@@ -1,5 +1,4 @@
 vim.pack.add({
-    'https://github.com/nvim-mini/mini.statusline',
     'https://github.com/nvim-lualine/lualine.nvim',
     'https://github.com/nvim-mini/mini.cmdline',
     'https://github.com/nvim-treesitter/nvim-treesitter', -- syntax
@@ -9,18 +8,15 @@ vim.pack.add({
     'https://github.com/stevearc/oil.nvim'                -- filesystem browser
 }, { confirm = false })
 
-require('mini.statusline').setup({
-    modes = { command = true },
+require('lualine').setup({
+    options = {
+        icons_enabled = true,
+        component_separators = '|',
+        section_separators = '',
+        globalstatus = false,
+        theme = 'no-clown-fiesta',
+    },
 })
-
--- require('lualine').setup({
---     options = {
---         icons_enabled = true,
---         component_separators = '|',
---         section_separators = '',
---         globalstatus = false,
---     },
--- })
 
 require('mini.cmdline').setup({
     modes = { command = true },
