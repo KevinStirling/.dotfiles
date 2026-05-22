@@ -25,14 +25,14 @@ format = "[$branch]($style)"
 style = "bright-black"
 
 [git_status]
-format = '([$all_status](218)[$ahead_behind](cyan)[$stashed](cyan) )'
+format = ' ([$all_status](218)[$ahead_behind](cyan)[$stashed](cyan) )'
 
-conflicted = "*"
-untracked = ""        
+conflicted = "~"
+untracked = "?"
 modified = "*"
-staged = ""            
-renamed = ""
-deleted = ""
+staged = "+"
+renamed = "*"
+deleted = "x"
 stashed = "≡"
 
 ahead = "⇡"
