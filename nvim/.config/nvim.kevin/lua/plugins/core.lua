@@ -43,12 +43,17 @@ vim.keymap.set("n", "-", require("oil").open, { desc = "Open parent directory" }
 
 require("nvim-treesitter").setup()
 
--- equivalent to :TSUpdate
-require("nvim-treesitter.install").update("all")
+require("nvim-treesitter").install({
+    "bash", "c", "css", "gdscript", "go", "html", "javascript", "json",
+    "lua", "markdown", "markdown_inline", "python", "rust", "tsx",
+    "typescript", "vim", "vimdoc", "yaml",
+})
 
--- require("nvim-treesitter.configs").setup({
---     auto_install = true, -- autoinstall languages that are not installed yet
--- })
+vim.api.nvim_create_autocmd("FileType", {
+    callback = function(args)
+        pcall(vim.treesitter.start, args.buf)
+    end,
+})
 
 require("treesitter-context").setup({
     opts = { mode = "cursor", max_lines = 3 },

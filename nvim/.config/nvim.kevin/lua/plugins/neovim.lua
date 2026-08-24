@@ -1,0 +1,1 @@
+/home/kevin/.config/omarchy/themes/no_clown_fiesta//neovim/pack.lua

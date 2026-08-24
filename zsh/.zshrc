@@ -133,7 +133,6 @@ unset key
 # Environment vars
 # ------------------------------
 
-alias nb='nvim ~/Documents/MyVault'
 alias ldtk='~/workspace/gamedev/tools/LDtk\ 1.5.3\ installer.AppImage &'
 alias gdvim='NVIM_APPNAME=nvimtest nvim --listen /tmp/godot.pipe'
 alias godot-stable='godot-stable'

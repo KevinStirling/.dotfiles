@@ -57,3 +57,5 @@ for server, config in pairs(lsp_servers) do
         end,
     })
 end
+
+vim.lsp.enable(vim.tbl_keys(lsp_servers))
