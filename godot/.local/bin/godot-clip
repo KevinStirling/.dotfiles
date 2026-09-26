@@ -1,0 +1,347 @@
+#!/usr/bin/env bash
+# godot-clip — capture a social-ready clip from any Godot 4 project.
+#
+# Uses Godot's Movie Writer (fixed timestep, frame-perfect) instead of a screen
+# recorder, then encodes with ffmpeg. Writes a lossless PNG sequence so it never
+# needs the project's editor/movie_writer/mjpeg_quality setting — that keeps the
+# tool independent of any particular project.
+#
+# One capture can feed several platform presets: each preset gets the best gif
+# on the quality ladder that fits its byte budget, and rungs shared between
+# presets are encoded only once.
+#
+# Note: capture resolution is the PROJECT's viewport size. --resolution does not
+# affect Movie Writer output, so resizing happens at encode time via --width.
+
+set -euo pipefail
+
+readonly PROG=${0##*/}
+
+die() { printf '%s: %s\n' "$PROG" "$*" >&2; exit 1; }
+note() { printf '%s: %s\n' "$PROG" "$*" >&2; }
+
+# Apparent size, not disk usage: `du` rounds up to the block size, which
+# misreports by up to 4K — useless when the whole point is a byte budget.
+human() {
+	local b=$1
+	if (( b >= 1048576 )); then
+		printf '%d.%dM\n' $(( b / 1048576 )) $(( (b % 1048576) * 10 / 1048576 ))
+	elif (( b >= 1024 )); then
+		printf '%dK\n' $(( b / 1024 ))
+	else
+		printf '%dB\n' "$b"
+	fi
+}
+
+# ---- defaults ---------------------------------------------------------------
+GODOT_BIN=${GODOT:-godot}
+PROJECT=""
+SCENE=""
+DURATION=8
+FPS=60
+OUT=""
+WIDTH=0          # 0 = keep native capture width
+PLAIN_GIF=0
+GIF_FPS=18
+GIF_CEIL=0       # 0 = ladder may go up to native capture width
+PLAIN_BUDGET=0   # 0 = no budget on the plain --gif output
+WITH_AUDIO=0
+KEEP=0
+FORMAT=png     # png = lossless but ~1.4x slower to record; avi = MJPEG, faster
+PRESETS=()       # "name:bytes", repeatable
+
+usage() {
+	cat <<'EOF'
+Usage: godot-clip [options] [scene]
+
+  scene                 Scene to run, e.g. scenes/Test.tscn or res://...
+                        Defaults to the project's run/main_scene.
+
+Options:
+  -d, --duration SEC    Clip length in seconds (default 8)
+  -f, --fps N           Capture framerate (default 60)
+  -w, --width PX        Scale the mp4 to this width (default: native)
+  -o, --output FILE     Output .mp4 path (default ./<scene>-clip.mp4)
+  -g, --gif             Write <base>.gif with no size budget
+  -p, --preset SPEC     Platform gif, repeatable. Writes <base>-<name>.gif.
+                        SPEC is a known name or name=BYTES, e.g. itch=5000000
+      --gif-fps N       Gif framerate (default 18)
+      --gif-width PX    Cap the gif ladder at this width (default: native)
+      --max-bytes N     Budget for the plain --gif output
+      --format png|avi  Intermediate capture format (default png).
+                        avi is MJPEG: ~1.4x faster to record, slightly lossy,
+                        and uses the project's movie_writer/mjpeg_quality.
+      --audio           Mux the captured audio track into the mp4
+      --project DIR     Project root (default: nearest project.godot upward)
+      --godot BIN       Godot binary (default: $GODOT or `godot`)
+      --keep-frames     Leave the PNG frames on disk and print the path
+  -h, --help            This text
+
+Known presets:
+  bluesky   2,000,000 B    mastodon  16,777,216 B
+
+Examples:
+  godot-clip                                main scene, 8s, native size -> mp4
+  godot-clip -d 12 scenes/Test.tscn         12 seconds of one scene
+  godot-clip -g                             plus an unbudgeted gif
+  godot-clip -p bluesky                     gif fitted under 2 MB
+  godot-clip -p bluesky -p mastodon         one capture, two differently sized gifs
+  godot-clip -p itch=5000000 --gif-fps 24   custom budget and framerate
+  godot-clip -w 720 --audio -d 15           downscaled mp4, with sound
+  godot-clip --keep-frames                  keep the PNG frames for hand editing
+
+Sample run:
+  $ godot-clip -d 6 -p mastodon -p bluesky scenes/Test.tscn
+  godot-clip: capturing 360 frames (6 s @ 60fps) from res://scenes/Test.tscn
+  godot-clip: captured 360 frames at 1152x648 (project viewport size)
+  Test-clip.mp4                             1.4M
+  Test-clip-mastodon.gif                    9.2M  1152px@18fps
+  godot-clip: bluesky: 1152px@18fps is 9.2M, budget 1.9M
+  godot-clip: bluesky: 960px@18fps is 7.1M, budget 1.9M
+  godot-clip: bluesky: 720px@18fps is 4.0M, budget 1.9M
+  godot-clip: bluesky: 600px@18fps is 2.8M, budget 1.9M
+  Test-clip-bluesky.gif                     1.7M  480px@18fps
+
+  Each preset takes the highest-quality rung that fits its budget, so a bigger
+  budget buys a bigger gif. Rungs shared between presets are encoded once.
+  Exit status is 1 if any preset's budget could not be met.
+
+Notes:
+  Capture size is the project's viewport size; Movie Writer ignores
+  --resolution. Use -w to downscale the mp4 and --gif-width to cap the gif.
+
+  Movie Writer is non-realtime: wall-clock cost is per FRAME, so a lower -f
+  makes recording feel faster, not slower. Roughly, on a simple scene, avi
+  sustains ~42 frames/sec and png ~28, so -f 30 --format avi records at about
+  real time while -f 60 runs ~1.7x slow. Playback speed is always correct
+  regardless -- only the live recording crawls.
+
+  Bluesky animates mp4 reliably; gif animation there is not guaranteed. Prefer
+  the mp4 for Bluesky and keep gifs for Mastodon, itch.io and devlogs.
+EOF
+}
+
+preset_budget() {
+	case $1 in
+		bluesky)  printf '2000000\n' ;;
+		mastodon) printf '16777216\n' ;;
+		*) return 1 ;;
+	esac
+}
+
+# ---- args -------------------------------------------------------------------
+while [[ $# -gt 0 ]]; do
+	case $1 in
+		-d|--duration)  DURATION=${2:?}; shift 2 ;;
+		-f|--fps)       FPS=${2:?}; shift 2 ;;
+		-w|--width)     WIDTH=${2:?}; shift 2 ;;
+		-o|--output)    OUT=${2:?}; shift 2 ;;
+		-g|--gif)       PLAIN_GIF=1; shift ;;
+		-p|--preset)
+			spec=${2:?}
+			if [[ $spec == *=* ]]; then
+				name=${spec%%=*}; bytes=${spec#*=}
+				[[ $bytes =~ ^[0-9]+$ ]] || die "preset '$name' budget must be bytes: $bytes"
+			else
+				name=$spec
+				bytes=$(preset_budget "$name") \
+					|| die "unknown preset: $name (known: bluesky, mastodon; or use name=BYTES)"
+			fi
+			PRESETS+=("$name:$bytes")
+			shift 2 ;;
+		--gif-fps)      GIF_FPS=${2:?}; shift 2 ;;
+		--gif-width)    GIF_CEIL=${2:?}; shift 2 ;;
+		--max-bytes)    PLAIN_BUDGET=${2:?}; PLAIN_GIF=1; shift 2 ;;
+		--format)
+			FORMAT=${2:?}
+			[[ $FORMAT == png || $FORMAT == avi ]] || die "--format must be png or avi"
+			shift 2 ;;
+		--audio)        WITH_AUDIO=1; shift ;;
+		--project)      PROJECT=${2:?}; shift 2 ;;
+		--godot)        GODOT_BIN=${2:?}; shift 2 ;;
+		--keep-frames)  KEEP=1; shift ;;
+		-h|--help)      usage; exit 0 ;;
+		-*)             die "unknown option: $1 (try --help)" ;;
+		*)              SCENE=$1; shift ;;
+	esac
+done
+
+command -v "$GODOT_BIN" >/dev/null || die "godot binary not found: $GODOT_BIN"
+command -v ffmpeg >/dev/null || die "ffmpeg not found"
+
+# ---- locate the project -----------------------------------------------------
+if [[ -z $PROJECT ]]; then
+	d=$PWD
+	while [[ $d != / ]]; do
+		[[ -f $d/project.godot ]] && { PROJECT=$d; break; }
+		d=${d%/*}; [[ -z $d ]] && d=/
+	done
+fi
+[[ -n $PROJECT && -f $PROJECT/project.godot ]] \
+	|| die "no project.godot found above $PWD (use --project DIR)"
+PROJECT=$(cd "$PROJECT" && pwd)
+
+# ---- resolve the scene ------------------------------------------------------
+if [[ -z $SCENE ]]; then
+	SCENE=$(sed -n 's/^run\/main_scene="\([^"]*\)".*/\1/p' "$PROJECT/project.godot" | head -1)
+	[[ -n $SCENE ]] || die "no scene given and project.godot declares no run/main_scene
+
+available scenes in $PROJECT:
+$(cd "$PROJECT" && find . -name '*.tscn' -not -path './.godot/*' | sed 's|^\./|  |')
+
+pick one, e.g.:
+  $PROG -d 8 -p bluesky $(cd "$PROJECT" && find . -name '*.tscn' -not -path './.godot/*' | head -1 | sed 's|^\./||')
+
+run '$PROG --help' for all options and a sample run"
+fi
+
+rel=${SCENE#res://}
+rel=${rel#./}
+# Validated up front on purpose: Godot 4.6.1 crashes with SIGFPE if the movie
+# writer shuts down having written zero frames, rather than reporting the path.
+[[ -f $PROJECT/$rel ]] || die "scene not found: $PROJECT/$rel"
+SCENE="res://$rel"
+
+[[ -n $OUT ]] || { base=${rel##*/}; OUT="${base%.tscn}-clip.mp4"; }
+BASE=${OUT%.mp4}
+
+# ---- capture ----------------------------------------------------------------
+TMP=$(mktemp -d "${TMPDIR:-/tmp}/godot-clip.XXXXXX")
+cleanup() { (( KEEP )) && note "frames kept in $TMP" || rm -rf "$TMP"; }
+trap cleanup EXIT
+
+frames=$(( DURATION * FPS ))
+note "capturing $frames frames ($DURATION s @ ${FPS}fps) from $SCENE"
+
+if ! "$GODOT_BIN" --path "$PROJECT" "$SCENE" \
+		--write-movie "$TMP/frame.$FORMAT" \
+		--fixed-fps "$FPS" \
+		--disable-vsync \
+		--quit-after "$frames" >"$TMP/godot.log" 2>&1; then
+	tail -20 "$TMP/godot.log" >&2
+	die "godot exited non-zero (log above)"
+fi
+
+shopt -s nullglob
+if [[ $FORMAT == avi ]]; then
+	[[ -s $TMP/frame.avi ]] || { tail -20 "$TMP/godot.log" >&2; die "no video written"; }
+	probe=$TMP/frame.avi
+	# Godot bakes --fixed-fps into the AVI header, so no -framerate needed here.
+	SRC_IN=(-i "$TMP/frame.avi")
+	count=$(ffprobe -v error -select_streams v:0 -count_frames \
+		-show_entries stream=nb_read_frames -of csv=p=0 "$probe")
+else
+	pngs=("$TMP"/frame*.png)
+	(( ${#pngs[@]} )) || { tail -20 "$TMP/godot.log" >&2; die "no frames written"; }
+	probe=${pngs[0]}
+	SRC_IN=(-framerate "$FPS" -start_number 0 -i "$TMP/frame%08d.png")
+	count=${#pngs[@]}
+fi
+
+native=$(ffprobe -v error -select_streams v:0 \
+	-show_entries stream=width,height -of csv=p=0:s=x "$probe")
+NATIVE_W=${native%x*}
+note "captured $count frames at $native (project viewport size) via $FORMAT"
+
+# ---- encode mp4 -------------------------------------------------------------
+vf="format=yuv420p"
+(( WIDTH > 0 )) && vf="scale=$WIDTH:-2:flags=lanczos,$vf"
+
+# PNG capture puts audio in a sidecar wav; AVI capture embeds it already.
+audio_in=() audio_out=(-an)
+if (( WITH_AUDIO )); then
+	if [[ -f $TMP/frame.wav ]]; then
+		audio_in=(-i "$TMP/frame.wav")
+		audio_out=(-c:a aac -b:a 128k -shortest)
+	elif [[ $FORMAT == avi ]]; then
+		audio_out=(-c:a aac -b:a 128k)
+	else
+		note "no audio track was captured; writing video only"
+	fi
+fi
+
+ffmpeg -v error -y "${SRC_IN[@]}" "${audio_in[@]}" \
+	-vf "$vf" \
+	-c:v libx264 -preset slow -crf 20 -profile:v high -level 4.0 \
+	-movflags +faststart "${audio_out[@]}" \
+	"$OUT"
+printf '%-40s %8s\n' "$OUT" "$(human "$(stat -c%s "$OUT")")"
+
+if (( ! PLAIN_GIF && ! ${#PRESETS[@]} )); then
+	note "mp4 only. Add -g for a gif, or '-p bluesky -p mastodon' for sized gifs."
+	note "all options and a worked example: $PROG --help"
+	exit 0
+fi
+
+# ---- gif ladder -------------------------------------------------------------
+# Rungs run best-to-worst. Width degrades before framerate: choppy motion reads
+# worse than slightly softer pixels. The ladder reaches up to the native capture
+# width so a generous budget actually buys quality instead of being wasted.
+ceil=$(( GIF_CEIL > 0 ? GIF_CEIL : NATIVE_W ))
+LADDER=()
+for w in $(printf '%s\n' "$NATIVE_W" 960 720 600 480 420 360 | sort -rn -u); do
+	(( w <= ceil )) && LADDER+=("$w:$GIF_FPS")
+done
+(( ${#LADDER[@]} )) || LADDER+=("$ceil:$GIF_FPS")
+LADDER+=("320:15" "280:12" "240:12")
+
+declare -A RUNG_PATH=() RUNG_SIZE=()
+GIF_RUNG_PATH=""
+
+# Encode one rung, memoised so presets sharing a rung don't re-encode it.
+# Returns via the global GIF_RUNG_PATH rather than stdout: command substitution
+# would run this in a subshell and the memo writes would be discarded.
+gif_rung() {
+	local w=$1 f=$2 key="${1}x${2}" out pal
+	if [[ -n ${RUNG_PATH[$key]:-} ]]; then GIF_RUNG_PATH=${RUNG_PATH[$key]}; return; fi
+	out="$TMP/rung-$key.gif"; pal="$TMP/pal-$key.png"
+	ffmpeg -v error -y "${SRC_IN[@]}" \
+		-vf "fps=$f,scale=$w:-1:flags=lanczos,palettegen=max_colors=192:stats_mode=diff" \
+		"$pal"
+	ffmpeg -v error -y "${SRC_IN[@]}" -i "$pal" \
+		-lavfi "fps=$f,scale=$w:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=sierra2_4a:diff_mode=rectangle" \
+		"$out"
+	RUNG_PATH[$key]=$out
+	RUNG_SIZE[$key]=$(stat -c%s "$out")
+	GIF_RUNG_PATH=$out
+}
+
+# Pick the best rung fitting $2 bytes (0 = unbudgeted) and copy it to $1.
+emit_gif() {
+	local dest=$1 budget=$2 label=$3 rung w f key path size
+	for rung in "${LADDER[@]}"; do
+		w=${rung%%:*}; f=${rung##*:}; key="${w}x${f}"
+		gif_rung "$w" "$f"
+		path=$GIF_RUNG_PATH
+		size=${RUNG_SIZE[$key]}
+		if (( budget == 0 || size <= budget )); then
+			cp "$path" "$dest"
+			printf '%-40s %8s  %s\n' "$dest" "$(human "$size")" "${w}px@${f}fps"
+			return 0
+		fi
+		note "$label: ${w}px@${f}fps is $(human "$size"), budget $(human "$budget")"
+	done
+	cp "${RUNG_PATH[${LADDER[-1]//:/x}]}" "$dest"
+	note "$label: cannot reach $(human "$budget") — shorten with -d, or set the"
+	note "$label: background parallax to 0 so gif delta compression has something to use"
+	printf '%-40s %8s  OVER BUDGET\n' "$dest" "$(human "$(stat -c%s "$dest")")"
+	return 1
+}
+
+rc=0
+(( PLAIN_GIF )) && { emit_gif "$BASE.gif" "$PLAIN_BUDGET" "gif" || rc=1; }
+
+# Largest budget first, so the expensive rungs land in the memo early.
+while IFS= read -r spec; do
+	[[ -n $spec ]] || continue
+	name=${spec%%:*}; budget=${spec#*:}
+	emit_gif "$BASE-$name.gif" "$budget" "$name" || rc=1
+done < <(printf '%s\n' "${PRESETS[@]}" | sort -t: -k2 -rn)
+
+# ---- closing hints ----------------------------------------------------------
+note "for Bluesky prefer $OUT — mp4 animates reliably there, gif may be"
+note "flattened. Mastodon takes either and transcodes gif to mp4 on upload."
+(( rc )) && note "a budget was unmet: shorten with -d, or lower --gif-width"
+note "all options and a worked example: $PROG --help"
+
+exit $rc
