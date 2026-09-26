@@ -168,6 +168,10 @@
       "rev": "ad9ede6a9cddf16cedbd31b8932d6dcdee9b716e",
       "src": "https://github.com/folke/snacks.nvim"
     },
+    "sourcepawn-tools.nvim": {
+      "rev": "164ef801dedf333e02821322b8ba602c810a61c0",
+      "src": "https://github.com/SparkyCloudy/sourcepawn-tools.nvim"
+    },
     "telescope-fzf-native.nvim": {
       "rev": "6fea601bd2b694c6f2ae08a6c6fab14930c60e2c",
       "src": "https://github.com/nvim-telescope/telescope-fzf-native.nvim"
